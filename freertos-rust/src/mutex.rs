@@ -3,6 +3,8 @@ use crate::prelude::v1::*;
 use crate::shim::*;
 use crate::units::*;
 
+use core::cell::UnsafeCell;
+
 pub type Mutex<T> = MutexImpl<T, MutexNormal>;
 pub type RecursiveMutex<T> = MutexImpl<T, MutexRecursive>;
 

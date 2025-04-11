@@ -2,6 +2,8 @@ use crate::base::*;
 use crate::prelude::v1::*;
 use crate::shim::*;
 
+use core::cell::UnsafeCell;
+
 pub struct CriticalRegion;
 impl CriticalRegion {
     pub fn enter() -> Self {

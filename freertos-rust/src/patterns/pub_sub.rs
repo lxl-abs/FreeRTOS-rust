@@ -1,3 +1,6 @@
+extern crate alloc;
+use alloc::sync::Arc;
+
 use crate::base::*;
 use crate::mutex::*;
 use crate::prelude::v1::*;
