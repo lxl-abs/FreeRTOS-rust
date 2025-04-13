@@ -17,6 +17,9 @@ links = "freertos"
 name = "freertos_rust"
 path = "src/lib.rs"
 
+[dependencies]
+log = { version = "0.4.27", default-features = true }
+
 [features]
 default = ["allocator", "sync", "time", "hooks", "interrupt", "delete_task"]
 allocator = []

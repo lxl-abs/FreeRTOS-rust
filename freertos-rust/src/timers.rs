@@ -1,4 +1,3 @@
-use crate::InterruptContext;
 use crate::base::*;
 use crate::prelude::v1::*;
 use crate::shim::*;
@@ -14,6 +13,7 @@ unsafe impl Sync for Timer {}
 /// for that queue to get unblocked.
 pub struct Timer {
     handle: FreeRtosTimerHandle,
+    detached: bool,
 }
 
 /// Helper builder for a new software timer.
@@ -69,20 +69,6 @@ impl Timer {
         }
     }
 
-    /// Create a timer from a raw handle.
-    ///
-    /// # Safety
-    ///
-    /// `handle` must be a valid FreeRTOS timer handle.
-    #[inline]
-    pub unsafe fn from_raw_handle(handle: FreeRtosTimerHandle) -> Self {
-        Self { handle }
-    }
-    #[inline]
-    pub fn raw_handle(&self) -> FreeRtosTimerHandle {
-        self.handle
-    }
-
     unsafe fn spawn_inner<'a>(
         name: &str,
         period_ticks: FreeRtosTickType,
@@ -95,6 +81,7 @@ impl Timer {
         let (success, timer_handle) = {
             let name = name.as_bytes();
             let name_len = name.len();
+            let mut _timer_handle = mem::zeroed::<core::ffi::c_void>();
 
             let ret = freertos_rs_timer_create(
                 name.as_ptr(),
@@ -117,11 +104,14 @@ impl Timer {
         extern "C" fn timer_callback(handle: FreeRtosTimerHandle) -> () {
             unsafe {
                 {
-                    let timer = Timer { handle };
+                    let timer = Timer {
+                        handle: handle,
+                        detached: true,
+                    };
                     if let Ok(callback_ptr) = timer.get_id() {
                         let b = Box::from_raw(callback_ptr as *mut Box<dyn Fn(Timer)>);
                         b(timer);
-                        let _ = Box::into_raw(b);
+                        Box::into_raw(b);
                     }
                 }
             }
@@ -129,6 +119,7 @@ impl Timer {
 
         Ok(Timer {
             handle: timer_handle as *const _,
+            detached: false,
         })
     }
 
@@ -152,17 +143,6 @@ impl Timer {
                 Ok(())
             } else {
                 Err(FreeRtosError::Timeout)
-            }
-        }
-    }
-
-    /// Start the timer from an interrupt.
-    pub fn start_from_isr(&self, context: &mut InterruptContext) -> Result<(), FreeRtosError> {
-        unsafe {
-            if freertos_rs_timer_start_from_isr(self.handle, context.get_task_field_mut()) == 0 {
-                Ok(())
-            } else {
-                Err(FreeRtosError::QueueSendTimeout)
             }
         }
     }
@@ -202,10 +182,8 @@ impl Timer {
     /// will consume the memory.
     ///
     /// Can be used for timers that will never be changed and don't need to stay in scope.
-    ///
-    /// This method is safe because resource leak is safe in Rust.
-    pub fn detach(self) {
-        mem::forget(self);
+    pub unsafe fn detach(mut self) {
+        self.detached = true;
     }
 
     fn get_id(&self) -> Result<FreeRtosVoidPtr, FreeRtosError> {
@@ -216,6 +194,10 @@ impl Timer {
 impl Drop for Timer {
     #[allow(unused_must_use)]
     fn drop(&mut self) {
+        if self.detached == true {
+            return;
+        }
+
         unsafe {
             if let Ok(callback_ptr) = self.get_id() {
                 // free the memory
