@@ -5,13 +5,14 @@ use crate::shim::*;
 use crate::units::*;
 use crate::utils::*;
 
-unsafe impl Send for Task {}
-
 /// Handle for a FreeRTOS task
 #[derive(Debug, Clone)]
 pub struct Task {
     task_handle: FreeRtosTaskHandle,
 }
+
+unsafe impl Send for Task {}
+unsafe impl Sync for Task {}
 
 /// Task's execution priority. Low priority numbers denote low priority tasks.
 #[derive(Debug, Copy, Clone)]
